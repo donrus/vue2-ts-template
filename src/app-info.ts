@@ -1,0 +1,17 @@
+export default {
+  address: 'Rua Gomes de Carvalho, 911 - Vila Olímpia, São Paulo - SP',
+  address_en: '911 Gomes de Carvalho - Vila Olímpia, São Paulo, SP - Brazil',
+  addressLatitude:  -23.5987436,
+  addressLongitude: -46.6822858,
+  phone: '(11) 2818-3433',
+  phone_en: '+55 (11) 2818-3433',
+  phoneUrl: 'tel:1128183433',
+  phoneUrl_en: 'tel:+551128183433',
+  email: 'contato@espressolabs.com.br',
+  email_en: 'hello@espressolabs.com.br',
+  emailUrl: 'mailto:contato@espressolabs.com.br',
+  emailUrl_en: 'mailto:hello@espressolabs.com.br',
+  linkedInUrl: 'https://www.linkedin.com/company/espressolabs',
+  facebookUrl: 'https://www.facebook.com/espressolabs/',
+  instagramUrl: 'https://www.instagram.com/espresso_labs/',
+};

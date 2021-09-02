@@ -1,0 +1,82 @@
+definitions:
+  steps:
+    - step: &build-push-dev
+        name: Build and push container image
+        image: node:10-slim
+        script:
+          - export IMAGE_NAME=gcr.io/$DEV_GCLOUD_PROJECT/$BITBUCKET_REPO_SLUG:$BITBUCKET_COMMIT
+          - export VUE_APP_NODE_ENV=dev
+          # Build dist
+          - npm install
+          - npm run build
+          # Build docker image
+          - docker build -t ${IMAGE_NAME} --build-arg GIT_COMMIT=$BITBUCKET_COMMIT --build-arg NODE_ENV=prod .
+          # Login to docker and push image
+          - echo $DEV_GCLOUD_API_KEYFILE | base64 -d > ./gcloud-api-key.json
+          - cat ./gcloud-api-key.json | docker login -u _json_key --password-stdin https://gcr.io
+          - docker push ${IMAGE_NAME}
+        services:
+          - docker
+        caches:
+          - docker
+          - node
+
+    - step: &run-dev
+        name: Run container
+        image: google/cloud-sdk:alpine
+        deployment: dev
+        script:
+          - export IMAGE_NAME=gcr.io/$DEV_GCLOUD_PROJECT/$BITBUCKET_REPO_SLUG:$BITBUCKET_COMMIT
+          - export CONTAINER_NAME=$BITBUCKET_REPO_SLUG-$BITBUCKET_BRANCH
+          - echo $DEV_GCLOUD_SSH_KEY_PRIV | base64 -d > /root/.ssh/docker-sshkey
+          - chmod 600 /root/.ssh/docker-sshkey
+          - echo $DEV_GCLOUD_SSH_KEY_PUB | base64 -d > /root/.ssh/docker-sshkey.pub
+          - echo $DEV_GCLOUD_API_KEYFILE | base64 -d > ./gcloud-api-key.json
+          - gcloud auth activate-service-account --key-file gcloud-api-key.json
+          - gcloud config set project $DEV_GCLOUD_PROJECT
+          - gcloud compute ssh bbpl@$DEV_GCLOUD_VM_NAME --ssh-key-file /root/.ssh/docker-sshkey --zone $DEV_GCLOUD_VM_ZONE --command "docker-credential-gcr configure-docker; docker pull ${IMAGE_NAME}; docker stop ${CONTAINER_NAME}; docker wait ${CONTAINER_NAME}; docker rm ${CONTAINER_NAME}; docker run -d --cpus=0.45 -p $PORT_HOST:$PORT_CONTAINER --name=${CONTAINER_NAME} --log-driver=gcplogs --restart=unless-stopped ${IMAGE_NAME}; docker image prune -a -f; docker container prune -f;"
+
+    - step: &build-push-prod
+        name: Build and push container image
+        image: node:10-slim
+        script:
+          - export IMAGE_NAME=gcr.io/$PROD_GCLOUD_PROJECT/$BITBUCKET_REPO_SLUG:$BITBUCKET_COMMIT
+          - export VUE_APP_NODE_ENV=prod
+          # Build dist
+          - npm install
+          - npm run build
+          # Build docker image
+          - docker build -t ${IMAGE_NAME} --build-arg GIT_COMMIT=$BITBUCKET_COMMIT --build-arg NODE_ENV=prod .
+          # Login to docker and push image
+          - echo $PROD_GCLOUD_API_KEYFILE | base64 -d > ./gcloud-api-key.json
+          - cat ./gcloud-api-key.json | docker login -u _json_key --password-stdin https://gcr.io
+          - docker push ${IMAGE_NAME}
+        services:
+          - docker
+        caches:
+          - docker
+          - node
+
+    - step: &run-prod
+        name: Run container
+        image: google/cloud-sdk:alpine
+        deployment: prod
+        script:
+          - export IMAGE_NAME=gcr.io/$PROD_GCLOUD_PROJECT/$BITBUCKET_REPO_SLUG:$BITBUCKET_COMMIT
+          - export CONTAINER_NAME=$BITBUCKET_REPO_SLUG-$BITBUCKET_BRANCH
+          - echo $PROD_GCLOUD_SSH_KEY_PRIV | base64 -d > /root/.ssh/docker-sshkey
+          - chmod 600 /root/.ssh/docker-sshkey
+          - echo $PROD_GCLOUD_SSH_KEY_PUB | base64 -d > /root/.ssh/docker-sshkey.pub
+          - echo $PROD_GCLOUD_API_KEYFILE | base64 -d > ./gcloud-api-key.json
+          - gcloud auth activate-service-account --key-file gcloud-api-key.json
+          - gcloud config set project $PROD_GCLOUD_PROJECT
+          - gcloud compute ssh bbpl@$PROD_GCLOUD_VM_NAME --ssh-key-file /root/.ssh/docker-sshkey --zone $PROD_GCLOUD_VM_ZONE --command "docker-credential-gcr configure-docker; docker pull ${IMAGE_NAME}; docker stop ${CONTAINER_NAME}; docker wait ${CONTAINER_NAME}; docker rm ${CONTAINER_NAME}; docker run -d --cpus=0.45 -p $PORT_HOST:$PORT_CONTAINER --name=${CONTAINER_NAME} --log-driver=gcplogs --restart=unless-stopped ${IMAGE_NAME}; docker image prune -a -f; docker container prune -f;"
+
+pipelines:
+  branches:
+    master:
+      - step: *build-push-prod
+      - step: *run-prod
+    dev:
+      - step: *build-push-dev
+      - step: *run-dev
